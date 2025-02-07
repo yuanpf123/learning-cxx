@@ -1,5 +1,6 @@
 ﻿#include "../exercise.h"
 #include <cstring>
+#include <numeric>
 // READ: 类模板 <https://zh.cppreference.com/w/cpp/language/class_template>
 
 template<class T>
@@ -7,9 +8,10 @@ struct Tensor4D {
     unsigned int shape[4];
     T *data;
 
-    Tensor4D(unsigned int const shape_[4], T const *data_) {
-        unsigned int size = 1;
+    Tensor4D(unsigned const int* /*const*/ shape_, T const *data_) {
+        unsigned int size = std::accumulate(shape_, shape_ + 4, 1u, std::multiplies<>());
         // TODO: 填入正确的 shape 并计算 size
+        std::memcpy(shape, shape_, 4 * sizeof(unsigned int));
         data = new T[size];
         std::memcpy(data, data_, size * sizeof(T));
     }
@@ -28,6 +30,28 @@ struct Tensor4D {
     // 则 `this` 与 `others` 相加时，3 个形状为 `[1, 2, 1, 4]` 的子张量各自与 `others` 对应项相加。
     Tensor4D &operator+=(Tensor4D const &others) {
         // TODO: 实现单向广播的加法
+        unsigned int strides_self[4]{shape[1] * shape[2] * shape[3], shape[2] * shape[3], shape[3], 1};
+        
+        for(int i = 0; i < 4; ++i){
+            if(this->shape[i] != others.shape[i] && others.shape[i] != 1 && shape[i] != 1){
+                throw std::invalid_argument("shape not match");
+            }
+        }
+        unsigned int strides_other[4]{others.shape[1] * others.shape[2] * others.shape[3], others.shape[2] * others.shape[3], others.shape[3], 1};
+        for (unsigned int i = 0; i < shape[0]; ++i) {
+            for (unsigned int j = 0; j < shape[1]; ++j) {
+                for (unsigned int k = 0; k < shape[2]; ++k) {
+                    for (unsigned int l = 0; l < shape[3]; ++l) {
+                        unsigned int idx_self  = i * strides_self[0] + j * strides_self[1] + k * strides_self[2] + l * strides_self[3];
+                        unsigned int idx_other = (others.shape[0] == 1 ? 0 : i) * strides_other[0] 
+                                                + (others.shape[1] == 1 ? 0 : j) * strides_other[1] 
+                                                + (others.shape[2] == 1 ? 0 : k) * strides_other[2] 
+                                                + (others.shape[3] == 1 ? 0 : l) * strides_other[3];
+                        data[idx_self] += others.data[idx_other];
+                    }
+                }
+            }
+        }
         return *this;
     }
 };
@@ -53,6 +77,7 @@ int main(int argc, char **argv) {
             ASSERT(t0.data[i] == data[i] * 2, "Tensor doubled by plus its self.");
         }
     }
+    std::cout << "Test1 passed." << std::endl;
     {
         unsigned int s0[]{1, 2, 3, 4};
         // clang-format off
